@@ -153,7 +153,7 @@
             android:text="Aspect Ratio"
             android:textStyle="bold"
             android:textColor="@color/brand_primary"
-            android:paddingTop="12dp"
+            android:paddingTop="8dp"
             android:paddingBottom="4dp" />
 
         <Spinner
@@ -265,6 +265,34 @@
             android:layout_height="wrap_content"
             android:text="Dev: HUD overlay"
             android:textColor="@android:color/white"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Novos switches pra perf (adiciona após Developer) -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/drawer_sw_skip_draw"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Skip Draw Hack (FPS Boost)"
+            android:textColor="@android:color/white"
+            android:checked="true"
+            android:layout_marginBottom="4dp"/>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/drawer_sw_fps_hud"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="FPS Overlay (Debug)"
+            android:textColor="@android:color/white"
+            android:checked="false"
+            android:layout_marginBottom="4dp"/>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/drawer_sw_auto_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Auto-Save Every 5min"
+            android:textColor="@android:color/white"
+            android:checked="true"
             android:layout_marginBottom="16dp"/>
 
         <!-- Controller Section -->
