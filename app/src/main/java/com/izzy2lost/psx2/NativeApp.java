@@ -115,6 +115,11 @@ public class NativeApp {
     public static native String getGameCrc(String gameUri);
     public static native String getCurrentGameSerial();
     
+    // Novos métodos pra perf/compat (JNI vai implementar)
+    public static native void setHack(String hackName, boolean enable);  // Pra SkipdrawRange, etc.
+    public static native void setEECycleRate(float rate);  // 0.8f pra +speed
+    public static native void setPreloadTextures(boolean enable);  // Carrega ahead pra menos stutter
+    
     // Synchronization object for CDVD operations to prevent crashes
     private static final Object CDVD_LOCK = new Object();
     
