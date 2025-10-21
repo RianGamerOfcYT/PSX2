@@ -140,6 +140,19 @@ public class NativeApp {
         android.util.Log.d("NativeApp", "Texture Preload " + (enable ? "enabled" : "disabled") + " via renderPreloading");
     }
     
+    // Wrapper pra saveState com nome (usa slot 0 como fallback, ou mapeia pra arquivo)
+    public static boolean saveState(String filename) {
+        try {
+            // Se quiser salvar por slot: return saveStateToSlot(0);  // Slot 0 como auto-save
+            // Ou, se o core suportar path: chama native se adicionar no C++
+            android.util.Log.d("NativeApp", "Auto-save to: " + filename + " (stubbed to slot 0)");
+            return saveStateToSlot(0);  // Usa slot 0 por agora – ajusta depois
+        } catch (Exception e) {
+            android.util.Log.e("NativeApp", "saveState failed: " + e.getMessage());
+            return false;
+        }
+    }
+    
     // Synchronization object for CDVD operations to prevent crashes
     private static final Object CDVD_LOCK = new Object();
     
