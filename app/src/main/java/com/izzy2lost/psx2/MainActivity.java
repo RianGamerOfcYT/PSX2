@@ -9,6 +9,7 @@ import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.TextUtils;
 import android.net.Uri;
 import android.view.InputDevice;
@@ -55,6 +56,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.graphics.Insets;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -92,6 +94,25 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
     // Global dialog tracking for pause/resume
     private int mOpenDialogCount = 0;
     private boolean mDrawerOpen = false;
+
+    // Auto-save handler for performance (runs in background)
+    private Handler autoSaveHandler = new Handler();
+    private Runnable autoSaveRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (hasSelectedGame() && isThread() && !NativeApp.isPaused()) {
+                try {
+                    String saveName = "auto_" + System.currentTimeMillis() + ".sav";
+                    NativeApp.saveState(saveName);
+                    android.util.Log.d("AutoSave", "Saved state: " + saveName);
+                } catch (Throwable t) {
+                    android.util.Log.w("AutoSave", "Auto-save failed: " + t.getMessage());
+                }
+            }
+            // Reagend a cada 5 min (300000 ms)
+            autoSaveHandler.postDelayed(this, 300000);
+        }
+    };
 
     public boolean isThread() {
         if (mEmulationThread != null) {
@@ -437,7 +458,9 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
             androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
         
         // Enable edge-to-edge for Android 15+ compatibility
-        EdgeToEdge.enable(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            EdgeToEdge.enable(this);
+        }
         
         // Hide action bar to improve immersive appearance
         if (getSupportActionBar() != null) {
@@ -1146,9 +1169,22 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
         final int RENDERER_SOFTWARE = 13;
         final int RENDERER_VULKAN = 14;
         
-        // Default to Automatic (-1) so the core can select a compatible renderer on older devices
-        int renderer = prefs.getInt("renderer", -1);
-        NativeApp.renderGpu(renderer);
+        // Default to Vulkan (14) for better perf on modern ARM64, fallback to AUTO if prefs unset
+        int renderer = prefs.getInt("renderer", 14); // Força Vulkan; muda pra -1 se quiser AUTO
+        if (renderer == 14) {
+            try {
+                // Testa se Vulkan roda (chama uma vez pra validar)
+                NativeApp.renderGpu(14);
+                android.util.Log.d("Perf", "Vulkan enabled for better FPS");
+            } catch (Throwable t) {
+                // Fallback pra OpenGL (12) se Vulkan falhar
+                renderer = 12;
+                NativeApp.renderGpu(12);
+                android.util.Log.w("Perf", "Vulkan failed, fallback to OpenGL: " + t.getMessage());
+            }
+        } else {
+            NativeApp.renderGpu(renderer);
+        }
 
         // Resolution scale multiplier (float), default 1.0
         float scale = prefs.getFloat("upscale_multiplier", 1.0f);
@@ -1496,6 +1532,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
     protected void onPause() {
         NativeApp.pause();
         super.onPause();
+        // Para auto-save
+        autoSaveHandler.removeCallbacks(autoSaveRunnable);
         ////
         if (mHIDDeviceManager != null) {
             mHIDDeviceManager.setFrozen(true);
@@ -1517,6 +1555,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
 
     @Override
     protected void onDestroy() {
+        // Para auto-save
+        autoSaveHandler.removeCallbacks(autoSaveRunnable);
         NativeApp.shutdown();
         super.onDestroy();
         ////
@@ -1578,6 +1618,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
         if(!isThread()) {
             mEmulationThread = new Thread(() -> NativeApp.runVMThread(m_szGamefile));
             mEmulationThread.start();
+            // Inicia auto-save
+            autoSaveHandler.post(autoSaveRunnable);
             // Show pause button when game starts (game is always running initially)
             runOnUiThread(() -> {
                 MaterialButton btn_pause_play = findViewById(R.id.btn_pause_play);
@@ -1590,6 +1632,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
     }
 
     private void restartEmuThread() {
+        // Para auto-save
+        autoSaveHandler.removeCallbacks(autoSaveRunnable);
         // Ensure BIOS present before starting/restarting emulation
         if (!ensureBiosOrPrompt()) return;
         NativeApp.shutdown();
@@ -1607,6 +1651,21 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
         int renderer = prefs.getInt("renderer", -1);
         android.util.Log.d("MainActivity", "Applying global renderer before game restart: " + renderer);
         NativeApp.renderGpu(renderer);
+        
+        // Hacks de perf: Ativa por default, com toggle via prefs
+        SharedPreferences perfPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        boolean skipDraw = perfPrefs.getBoolean("skip_draw_hack", true); // Default on
+        boolean preloadTex = perfPrefs.getBoolean("preload_textures", true); // Default on
+        float eeRate = perfPrefs.getFloat("ee_cycle_rate", 0.8f); // 80% pra speed
+
+        try {
+            if (skipDraw) NativeApp.setHack("SkipdrawRange", true); // Pula draws extras
+            if (preloadTex) NativeApp.setPreloadTextures(true); // Carrega assets ahead
+            NativeApp.setEECycleRate(eeRate); // Reduz cycles EE pra +FPS (ajusta se crashar)
+            android.util.Log.d("Perf", "Applied hacks: skipDraw=" + skipDraw + ", preload=" + preloadTex + ", eeRate=" + eeRate);
+        } catch (Throwable t) {
+            android.util.Log.w("Perf", "Hack apply failed: " + t.getMessage());
+        }
         
         ////
         startEmuThread();
@@ -2081,6 +2140,47 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                 try { NativeApp.setHudVisible(isChecked); } catch (Throwable ignored) {}
             });
         }
+
+        // Novo switch pra Skip Draw
+        MaterialSwitch swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw); // Adiciona no XML se não tiver
+        if (swSkipDraw != null && swSkipDraw.getTag() == null) {
+            swSkipDraw.setTag("setup");
+            swSkipDraw.setChecked(prefs.getBoolean("skip_draw_hack", true));
+            swSkipDraw.setOnCheckedChangeListener((bv, checked) -> {
+                prefs.edit().putBoolean("skip_draw_hack", checked).apply();
+                // Reaplica hack live
+                try { NativeApp.setHack("SkipdrawRange", checked); } catch (Throwable ignored) {}
+            });
+        }
+
+        // FPS Overlay (expande o HUD dev)
+        MaterialSwitch swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
+        if (swFpsHud != null && swFpsHud.getTag() == null) {
+            swFpsHud.setTag("setup");
+            swFpsHud.setChecked(prefs.getBoolean("fps_hud_visible", false));
+            swFpsHud.setOnCheckedChangeListener((bv, checked) -> {
+                prefs.edit().putBoolean("fps_hud_visible", checked).apply();
+                try { 
+                    NativeApp.setHudVisible(checked); // Usa o HUD pra mostrar FPS se o core suportar
+                    // Ou custom: NativeApp.setShowFpsOverlay(checked); se adicionar no Native
+                } catch (Throwable ignored) {}
+            });
+        }
+
+        // Auto-save toggle
+        MaterialSwitch swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
+        if (swAutoSave != null && swAutoSave.getTag() == null) {
+            swAutoSave.setTag("setup");
+            swAutoSave.setChecked(prefs.getBoolean("auto_save_enabled", true));
+            swAutoSave.setOnCheckedChangeListener((bv, checked) -> {
+                prefs.edit().putBoolean("auto_save_enabled", checked).apply();
+                if (!checked) {
+                    autoSaveHandler.removeCallbacks(autoSaveRunnable);
+                } else if (hasSelectedGame() && isThread()) {
+                    autoSaveHandler.post(autoSaveRunnable);
+                }
+            });
+        }
     }
 
     private void refreshDrawerSettings() {
@@ -2208,6 +2308,34 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                 }
             } catch (Exception e) {
                 android.util.Log.e("MainActivity", "Error refreshing dev HUD switch: " + e.getMessage());
+            }
+
+            // Refresh new switches
+            try {
+                MaterialSwitch swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw);
+                if (swSkipDraw != null) {
+                    swSkipDraw.setChecked(prefs.getBoolean("skip_draw_hack", true));
+                }
+            } catch (Exception e) {
+                android.util.Log.e("MainActivity", "Error refreshing skip draw switch: " + e.getMessage());
+            }
+
+            try {
+                MaterialSwitch swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
+                if (swFpsHud != null) {
+                    swFpsHud.setChecked(prefs.getBoolean("fps_hud_visible", false));
+                }
+            } catch (Exception e) {
+                android.util.Log.e("MainActivity", "Error refreshing FPS HUD switch: " + e.getMessage());
+            }
+
+            try {
+                MaterialSwitch swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
+                if (swAutoSave != null) {
+                    swAutoSave.setChecked(prefs.getBoolean("auto_save_enabled", true));
+                }
+            } catch (Exception e) {
+                android.util.Log.e("MainActivity", "Error refreshing auto-save switch: " + e.getMessage());
             }
             
         } catch (Throwable t) {
