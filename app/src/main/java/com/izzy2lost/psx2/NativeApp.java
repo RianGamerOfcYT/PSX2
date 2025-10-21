@@ -115,10 +115,30 @@ public class NativeApp {
     public static native String getGameCrc(String gameUri);
     public static native String getCurrentGameSerial();
     
-    // Novos métodos pra perf/compat (JNI vai implementar)
-    public static native void setHack(String hackName, boolean enable);  // Pra SkipdrawRange, etc.
-    public static native void setEECycleRate(float rate);  // 0.8f pra +speed
-    public static native void setPreloadTextures(boolean enable);  // Carrega ahead pra menos stutter
+    // Novos métodos pra perf/compat (mapeados pros existentes, sem precisar de novo C++)
+    // Pra SkipdrawRange: Usa speedhackEecycleskip ou similar (ajusta se tiver hack específico)
+    public static void setHack(String hackName, boolean enable) {
+        if (hackName.equals("SkipdrawRange")) {
+            // Mapeia pra speedhackEecycleskip (1 pra enable, 0 disable) - boost FPS sem novo JNI
+            speedhackEecycleskip(enable ? 1 : 0);
+            android.util.Log.d("NativeApp", "SkipDraw hack " + (enable ? "enabled" : "disabled") + " via EE cycleskip");
+        } else {
+            android.util.Log.w("NativeApp", "Unknown hack: " + hackName + " (stubbed)");
+        }
+    }
+    
+    // Mapeia pra speedhackEecyclerate (converte float pra int %)
+    public static void setEECycleRate(float rate) {
+        int intRate = Math.round(rate * 100);  // Ex: 0.8f -> 80
+        speedhackEecyclerate(intRate);
+        android.util.Log.d("NativeApp", "EE Cycle Rate set to " + rate + " (" + intRate + "%) via existing speedhack");
+    }
+    
+    // Mapeia pra renderPreloading (1 pra enable, 0 disable)
+    public static void setPreloadTextures(boolean enable) {
+        renderPreloading(enable ? 1 : 0);
+        android.util.Log.d("NativeApp", "Texture Preload " + (enable ? "enabled" : "disabled") + " via renderPreloading");
+    }
     
     // Synchronization object for CDVD operations to prevent crashes
     private static final Object CDVD_LOCK = new Object();
