@@ -1,0 +1,63 @@
+name: Build PSX2 APK
+
+# Triggers: Roda em push/PR pra main/master, ou manual
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:  # Permite run manual no GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Máquina Linux rápida (ARM64 compat se precisar)
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4  # Clona o repo
+
+    - name: Set up JDK 17  # Java pra Gradle/Android
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'  # OpenJDK estável
+
+    - name: Grant execute permission for gradlew  # Permite rodar Gradle wrapper
+      run: chmod +x gradlew
+
+    - name: Cache Gradle dependencies  # Acelera builds repetidos (cache libs)
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Build with Gradle (Release APK)  # Builda APK otimizado
+      run: ./gradlew assembleRelease --no-daemon  # --no-daemon pra não travar memória
+
+    - name: Upload APK artifact  # Upa APK pra download
+      uses: actions/upload-artifact@v4
+      with:
+        name: PSX2-APK-${{ github.sha }}  # Nome com commit hash
+        path: app/build/outputs/apk/release/*.apk
+        retention-days: 30  # Guarda 30 dias
+
+    # Opcional: Testa unitários se tiver
+    - name: Run unit tests (se existir)
+      run: ./gradlew test
+
+    # Opcional: Build debug APK também
+    - name: Build Debug APK
+      if: github.ref == 'refs/heads/master'  # Só em main
+      run: ./gradlew assembleDebug
+
+    - name: Upload Debug APK
+      if: github.ref == 'refs/heads/master'
+      uses: actions/upload-artifact@v4
+      with:
+        name: PSX2-Debug-APK-${{ github.sha }}
+        path: app/build/outputs/apk/debug/*.apk
+        retention-days: 7
