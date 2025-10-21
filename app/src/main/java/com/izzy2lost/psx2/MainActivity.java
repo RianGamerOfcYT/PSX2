@@ -56,7 +56,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.graphics.Insets;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.switchmaterial.SwitchMaterial;  // Adicionado pra novos switches
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
             if (hasSelectedGame() && isThread() && !NativeApp.isPaused()) {
                 try {
                     String saveName = "auto_" + System.currentTimeMillis() + ".sav";
-                    NativeApp.saveState(saveName);
+                    NativeApp.saveState(saveName);  // Agora funciona via wrapper
                     android.util.Log.d("AutoSave", "Saved state: " + saveName);
                 } catch (Throwable t) {
                     android.util.Log.w("AutoSave", "Auto-save failed: " + t.getMessage());
@@ -2141,8 +2141,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
             });
         }
 
-        // Novo switch pra Skip Draw
-        MaterialSwitch swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw); // Adiciona no XML se não tiver
+        // Novo switch pra Skip Draw (com null check)
+        SwitchMaterial swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw);
         if (swSkipDraw != null && swSkipDraw.getTag() == null) {
             swSkipDraw.setTag("setup");
             swSkipDraw.setChecked(prefs.getBoolean("skip_draw_hack", true));
@@ -2151,10 +2151,12 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                 // Reaplica hack live
                 try { NativeApp.setHack("SkipdrawRange", checked); } catch (Throwable ignored) {}
             });
+        } else if (swSkipDraw == null) {
+            android.util.Log.w("Drawer", "drawer_sw_skip_draw not found in XML");
         }
 
-        // FPS Overlay (expande o HUD dev)
-        MaterialSwitch swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
+        // FPS Overlay (expande o HUD dev, com null check)
+        SwitchMaterial swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
         if (swFpsHud != null && swFpsHud.getTag() == null) {
             swFpsHud.setTag("setup");
             swFpsHud.setChecked(prefs.getBoolean("fps_hud_visible", false));
@@ -2165,10 +2167,12 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                     // Ou custom: NativeApp.setShowFpsOverlay(checked); se adicionar no Native
                 } catch (Throwable ignored) {}
             });
+        } else if (swFpsHud == null) {
+            android.util.Log.w("Drawer", "drawer_sw_fps_hud not found in XML");
         }
 
-        // Auto-save toggle
-        MaterialSwitch swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
+        // Auto-save toggle (com null check)
+        SwitchMaterial swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
         if (swAutoSave != null && swAutoSave.getTag() == null) {
             swAutoSave.setTag("setup");
             swAutoSave.setChecked(prefs.getBoolean("auto_save_enabled", true));
@@ -2180,6 +2184,8 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                     autoSaveHandler.post(autoSaveRunnable);
                 }
             });
+        } else if (swAutoSave == null) {
+            android.util.Log.w("Drawer", "drawer_sw_auto_save not found in XML");
         }
     }
 
@@ -2310,9 +2316,9 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
                 android.util.Log.e("MainActivity", "Error refreshing dev HUD switch: " + e.getMessage());
             }
 
-            // Refresh new switches
+            // Refresh new switches (com null checks)
             try {
-                MaterialSwitch swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw);
+                SwitchMaterial swSkipDraw = header.findViewById(R.id.drawer_sw_skip_draw);
                 if (swSkipDraw != null) {
                     swSkipDraw.setChecked(prefs.getBoolean("skip_draw_hack", true));
                 }
@@ -2321,7 +2327,7 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
             }
 
             try {
-                MaterialSwitch swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
+                SwitchMaterial swFpsHud = header.findViewById(R.id.drawer_sw_fps_hud);
                 if (swFpsHud != null) {
                     swFpsHud.setChecked(prefs.getBoolean("fps_hud_visible", false));
                 }
@@ -2330,7 +2336,7 @@ public class MainActivity extends AppCompatActivity implements GamesCoverDialogF
             }
 
             try {
-                MaterialSwitch swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
+                SwitchMaterial swAutoSave = header.findViewById(R.id.drawer_sw_auto_save);
                 if (swAutoSave != null) {
                     swAutoSave.setChecked(prefs.getBoolean("auto_save_enabled", true));
                 }
